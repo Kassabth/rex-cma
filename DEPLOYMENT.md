@@ -34,7 +34,7 @@ git init
 git add .
 git commit -m "Initial commit — REX CMA CGM app"
 # Create a new repo on github.com, then:
-git remote add origin https://github.com/YOUR_USERNAME/rex-cma.git
+git remote add origin https://github.com/Kassabth/rex-cma.git
 git push -u origin main
 ```
 

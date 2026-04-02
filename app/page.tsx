@@ -36,7 +36,7 @@ export default function Home() {
             CMA CGM
           </span>
         </div>
-        <span className="text-xs text-white/30 font-medium">REX 2024–2025</span>
+        <span className="text-xs text-white/30 font-medium">REX Juin 2026</span>
       </header>
 
       {/* Tab Content */}
