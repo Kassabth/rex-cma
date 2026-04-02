@@ -11,8 +11,12 @@ const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 interface PortTooltip {
   name: string;
   fact: string;
+}
+
+interface ScreenPos {
   x: number;
   y: number;
+  visible: boolean;
 }
 
 export default function GlobeWrapper() {
@@ -20,26 +24,11 @@ export default function GlobeWrapper() {
   const [tooltip, setTooltip] = useState<PortTooltip | null>(null);
   const [size, setSize] = useState({ width: 340, height: 360 });
   const [countries, setCountries] = useState<any[]>([]);
+  // Screen-space positions of each port, updated every animation frame
+  const [portScreenPositions, setPortScreenPositions] = useState<ScreenPos[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Stable click handler via ref — avoids stale closure inside htmlElement callback
-  const handlePortClickRef = useRef<(name: string, fact: string, clientX: number, clientY: number) => void>();
-  handlePortClickRef.current = (name, fact, clientX, clientY) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setTooltip({
-      name,
-      fact,
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    });
-    if (globeRef.current) {
-      globeRef.current.controls().autoRotate = false;
-      setTimeout(() => {
-        if (globeRef.current) globeRef.current.controls().autoRotate = true;
-      }, 5000);
-    }
-  };
+  const rafRef = useRef<number | null>(null);
+  const globeReadyRef = useRef(false);
 
   // Responsive sizing
   useEffect(() => {
@@ -54,7 +43,7 @@ export default function GlobeWrapper() {
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  // Fetch country polygons from world-atlas topojson (~90 KB)
+  // Fetch country polygons
   useEffect(() => {
     fetch('https://unpkg.com/world-atlas@2/countries-110m.json')
       .then((r) => r.json())
@@ -65,139 +54,206 @@ export default function GlobeWrapper() {
       .catch(console.error);
   }, []);
 
-  // Globe controls on ready
+  // RAF loop: convert (lat,lng) → screen (x,y) every frame so buttons track rotation
+  useEffect(() => {
+    const loop = () => {
+      rafRef.current = requestAnimationFrame(loop);
+      if (!globeRef.current || !globeReadyRef.current || !containerRef.current) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const globeRadius = size.width / 2; // approx globe circle radius in px
+      const cx = size.width / 2;
+      const cy = size.height / 2;
+
+      const positions: ScreenPos[] = globePorts.map((port) => {
+        const coords = globeRef.current.getScreenCoords(port.lat, port.lng, 0.02);
+        if (!coords) return { x: -999, y: -999, visible: false };
+        const x = coords.x;
+        const y = coords.y;
+        // A port is visible if its screen position is inside the globe disc
+        const dx = x - cx;
+        const dy = y - cy;
+        const visible = Math.sqrt(dx * dx + dy * dy) < globeRadius * 0.92;
+        return { x, y, visible };
+      });
+
+      setPortScreenPositions(positions);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [size]);
+
   const handleGlobeReady = useCallback(() => {
+    globeReadyRef.current = true;
     const globe = globeRef.current;
     if (!globe) return;
     globe.controls().autoRotate = true;
     globe.controls().autoRotateSpeed = 0.5;
     globe.controls().enableZoom = false;
-    // Start centred on Europe / Atlantic so Marseille is visible
     globe.pointOfView({ lat: 25, lng: 15, altitude: 2.0 }, 0);
   }, []);
 
-  // Build HTML elements for port markers — large tap targets, visually a glowing dot
-  const buildHtmlElement = useCallback((d: any) => {
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = [
-      'position: relative',
-      'width: 44px',
-      'height: 44px',
-      'display: flex',
-      'align-items: center',
-      'justify-content: center',
-      'cursor: pointer',
-      '-webkit-tap-highlight-color: transparent',
-    ].join(';');
-
-    // Glow ring (purely visual, pointer-events: none)
-    const ring = document.createElement('div');
-    ring.style.cssText = [
-      'position: absolute',
-      'width: 22px',
-      'height: 22px',
-      'border-radius: 50%',
-      'border: 2px solid rgba(227,6,19,0.45)',
-      'animation: pulse-ring 2s infinite',
-      'pointer-events: none',
-    ].join(';');
-
-    // Centre dot
-    const dot = document.createElement('div');
-    dot.style.cssText = [
-      'width: 10px',
-      'height: 10px',
-      'border-radius: 50%',
-      'background: #E30613',
-      'box-shadow: 0 0 8px 3px rgba(227,6,19,0.7)',
-      'pointer-events: none',
-    ].join(';');
-
-    wrapper.appendChild(ring);
-    wrapper.appendChild(dot);
-
-    // The entire 44×44 wrapper is the tap target
-    wrapper.addEventListener('click', (e: MouseEvent) => {
-      e.stopPropagation();
-      handlePortClickRef.current?.(d.name, d.fact, e.clientX, e.clientY);
-    });
-    // Also handle touchend for iOS
-    wrapper.addEventListener('touchend', (e: TouchEvent) => {
-      e.stopPropagation();
-      const touch = e.changedTouches[0];
-      if (touch) handlePortClickRef.current?.(d.name, d.fact, touch.clientX, touch.clientY);
-    });
-
-    return wrapper;
+  const handlePortTap = useCallback((port: (typeof globePorts)[0]) => {
+    setTooltip({ name: port.name, fact: port.fact });
+    // Pause rotation briefly
+    if (globeRef.current) {
+      globeRef.current.controls().autoRotate = false;
+      setTimeout(() => {
+        if (globeRef.current) globeRef.current.controls().autoRotate = true;
+      }, 5000);
+    }
   }, []);
 
   return (
-    <div ref={containerRef} className="relative w-full flex justify-center">
-      {/* Inline keyframe for the ring pulse */}
+    <div ref={containerRef} className="relative w-full flex justify-center" style={{ height: size.height }}>
       <style>{`
         @keyframes pulse-ring {
-          0%   { transform: scale(0.85); opacity: 0.8; }
-          50%  { transform: scale(1.3);  opacity: 0.3; }
-          100% { transform: scale(0.85); opacity: 0.8; }
+          0%   { transform: scale(0.8);  opacity: 0.9; }
+          50%  { transform: scale(1.4);  opacity: 0.25; }
+          100% { transform: scale(0.8);  opacity: 0.9; }
         }
       `}</style>
 
+      {/* Globe canvas */}
       <Globe
         ref={globeRef}
         onGlobeReady={handleGlobeReady}
         width={size.width}
         height={size.height}
-        // Dark ocean base + high-res land texture
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
         backgroundImageUrl={null as any}
         backgroundColor="rgba(0,0,0,0)"
-        // Subtle blue atmosphere — matches navy branding
         atmosphereColor="#1a5fa8"
         atmosphereAltitude={0.12}
-        // Country polygons — correct shapes with visible borders
         polygonsData={countries}
         polygonCapColor={() => 'rgba(30, 60, 100, 0.55)'}
-        polygonSideColor={() => 'rgba(0, 0, 0, 0)'}
-        polygonStrokeColor={() => 'rgba(100, 160, 230, 0.45)'}
+        polygonSideColor={() => 'rgba(0,0,0,0)'}
+        polygonStrokeColor={() => 'rgba(100,160,230,0.45)'}
         polygonAltitude={0.006}
-        // Port markers as HTML elements — proper 44px tap targets
-        htmlElementsData={globePorts}
-        htmlElement={buildHtmlElement}
-        htmlAltitude={0.02}
       />
 
-      {/* Tooltip */}
+      {/* Port tap buttons — React DOM elements, positioned via screen coords.
+          These sit on top of the canvas so touch events are never blocked. */}
+      {portScreenPositions.map((pos, i) => {
+        if (!pos.visible) return null;
+        const port = globePorts[i];
+        return (
+          <button
+            key={port.name}
+            aria-label={`Port: ${port.name}`}
+            onClick={() => handlePortTap(port)}
+            style={{
+              position: 'absolute',
+              left: pos.x - 22,
+              top: pos.y - 22,
+              width: 44,
+              height: 44,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              WebkitTapHighlightColor: 'transparent',
+              // Centre the visual indicator within the tap target
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {/* Pulsing ring */}
+            <span
+              style={{
+                position: 'absolute',
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                border: '2px solid rgba(227,6,19,0.5)',
+                animation: 'pulse-ring 2s infinite',
+                pointerEvents: 'none',
+              }}
+            />
+            {/* Solid dot */}
+            <span
+              style={{
+                display: 'block',
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                background: '#E30613',
+                boxShadow: '0 0 7px 3px rgba(227,6,19,0.65)',
+                pointerEvents: 'none',
+              }}
+            />
+          </button>
+        );
+      })}
+
+      {/* Tooltip — shown in the centre of the globe area, not at tap position,
+          so it never gets clipped near edges */}
       {tooltip && (
         <div
-          className="absolute z-20 max-w-[210px] rounded-2xl shadow-2xl"
           style={{
-            left: Math.min(Math.max(tooltip.x - 105, 8), size.width - 220),
-            top: Math.max(tooltip.y - 110, 8),
-            background: 'rgba(8, 18, 36, 0.97)',
-            border: '1px solid rgba(227, 6, 19, 0.5)',
-            boxShadow: '0 0 24px rgba(227,6,19,0.2)',
+            position: 'absolute',
+            bottom: 44,
+            left: 12,
+            right: 12,
+            background: 'rgba(8,18,36,0.97)',
+            border: '1px solid rgba(227,6,19,0.5)',
+            boxShadow: '0 0 28px rgba(227,6,19,0.2)',
+            borderRadius: 16,
+            zIndex: 30,
+            overflow: 'hidden',
           }}
         >
-          {/* Red header strip */}
           <div
-            className="px-4 py-2 rounded-t-2xl flex items-center justify-between gap-2"
-            style={{ background: 'rgba(227,6,19,0.15)', borderBottom: '1px solid rgba(227,6,19,0.25)' }}
+            style={{
+              background: 'rgba(227,6,19,0.14)',
+              borderBottom: '1px solid rgba(227,6,19,0.25)',
+              padding: '10px 14px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 8,
+            }}
           >
-            <p className="font-bold text-sm text-white">{tooltip.name}</p>
+            <p style={{ fontWeight: 700, fontSize: 14, color: '#fff', margin: 0 }}>{tooltip.name}</p>
             <button
-              className="text-white/50 hover:text-white text-lg leading-none"
               onClick={() => setTooltip(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: 20,
+                lineHeight: 1,
+                cursor: 'pointer',
+                padding: '0 2px',
+                WebkitTapHighlightColor: 'transparent',
+              }}
               aria-label="Fermer"
             >
               ×
             </button>
           </div>
-          <p className="text-xs text-white/75 leading-relaxed px-4 py-3">{tooltip.fact}</p>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', padding: '10px 14px', margin: 0, lineHeight: 1.5 }}>
+            {tooltip.fact}
+          </p>
         </div>
       )}
 
       {/* Hint */}
-      <p className="absolute bottom-2 text-center w-full text-[11px] text-white/30 pointer-events-none">
+      <p
+        style={{
+          position: 'absolute',
+          bottom: 8,
+          width: '100%',
+          textAlign: 'center',
+          fontSize: 11,
+          color: 'rgba(255,255,255,0.3)',
+          pointerEvents: 'none',
+          margin: 0,
+        }}
+      >
         Touchez un port • • •
       </p>
     </div>
