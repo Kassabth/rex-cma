@@ -39,28 +39,33 @@ export const partnershipTimeline = [
   },
   {
     year: '2021',
-    title: 'Premiers engagements',
-    description: 'TODO — Démarrage de la collaboration Devoteam × CMA CGM. Premières missions d\'architecture.',
+    title: 'Migration Cloud & Audit de Plateforme',
+    description: 'Devoteam approfondit son partenariat avec la CMA en accompagnant la migration vers le cloud et en étendant son expertise à de nouveaux domaines stratégiques.',
   },
   {
     year: '2022',
-    title: 'Montée en puissance',
-    description: 'TODO — Expansion de l\'équipe et élargissement du périmètre aux projets stratégiques.',
+    title: 'Gouvernance & Audit',
+    description: 'Devoteam renforce la maturité organisationnelle de la CMA en conduisant un audit approfondi de sa gouvernance IT.',
   },
   {
     year: '2023',
-    title: 'Structuration de la pratique EA',
-    description: 'TODO — Mise en place du cadre de gouvernance architecture. Croissance de l\'équipe à X consultants.',
+    title: 'Cartographie des Capacités & Innovation Digitale',
+    description: 'Devoteam accompagne la CMA dans la cartographie de ses capacités, l\'analyse de marché, le développement du citizen dev et l\'animation du Digital Lab.',
   },
   {
     year: '2024',
-    title: 'Lancement Archi4IT',
-    description: 'TODO — Déploiement de la pratique opérationnelle Archi4IT. Couverture de X projets simultanés.',
+    title: 'Architecture d\'Entreprise & IT Ops',
+    description: 'Devoteam apporte son expertise en architecture d\'entreprise et en pilotage continu des opérations IT pour soutenir la transformation durable de la CMA.',
   },
   {
     year: '2025',
-    title: 'Maturité & Consolidation',
-    description: 'TODO — Consolidation des deux practices. Reconnaissance interne CMA CGM comme partenaire clé.',
+    title: 'Architecture d\'Entreprise & Knowledge Management',
+    description: 'Devoteam consolide la vision architecturale de la CMA tout en structurant la capitalisation et le partage des connaissances au sein de l\'organisation.',
+  },
+  {
+    year: '2026',
+    title: 'Transformation & Architecture Multi-Dimensionnelle',
+    description: 'Devoteam accompagne la CMA dans une transformation globale intégrant la conduite du changement ARDOC, l\'architecture d\'entreprise, Archi 4 IT et la refonte du TOM.',
   },
 ];
 
