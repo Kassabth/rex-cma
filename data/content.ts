@@ -23,7 +23,7 @@ export const globePorts = [
 ];
 
 export const cmaStats = [
-  { label: 'Chiffre d\'affaires', value: 23, suffix: 'Md €', description: 'Revenus 2023' },
+  { label: 'Chiffre d\'affaires', value: 54.38, suffix: 'Md $', description: 'Revenus 2025' },
   { label: 'Navires', value: 650, suffix: '+', description: 'Flotte mondiale' },
   { label: 'Employés', value: 155000, suffix: '+', description: 'Collaborateurs dans le monde' },
   { label: 'Pays desservis', value: 160, suffix: '+', description: 'Présence mondiale' },
@@ -32,6 +32,11 @@ export const cmaStats = [
 ];
 
 export const partnershipTimeline = [
+  {
+    year: '2018–2019',
+    title: 'Premiers Engagements',
+    description: 'Les premiers projets d\'audit et de stratégie cloud ont marqué le début d\'une longue relation de confiance entre la CMA et Devoteam.',
+  },
   {
     year: '2021',
     title: 'Premiers engagements',
